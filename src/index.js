@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('./db');
 const { register, metricsMiddleware } = require('./metrics');
+const { renderStorefront } = require('./render');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,18 +12,11 @@ app.get('/', async (req, res) => {
   try {
     await pool.query('INSERT INTO page_views DEFAULT VALUES');
     const { rows: [{ count }] } = await pool.query('SELECT count(*)::int AS count FROM page_views');
-    const { rows: messages } = await pool.query('SELECT id, body FROM messages ORDER BY id');
+    const { rows: products } = await pool.query(
+      'SELECT id, name, tagline, price_cents, accent_color FROM products ORDER BY sort_order'
+    );
 
-    const items = messages.map((m) => `<li>${m.body}</li>`).join('\n');
-    res.send(`<!doctype html>
-<html>
-  <head><title>Phase 1</title></head>
-  <body>
-    <h1>Phase 1 App</h1>
-    <p>Page views: ${count}</p>
-    <ul>${items}</ul>
-  </body>
-</html>`);
+    res.send(renderStorefront(products, count));
   } catch (err) {
     console.error('Error handling /', err);
     res.status(500).send('Internal Server Error');
