@@ -1,0 +1,194 @@
+---
+# Provisions this WSL2 host for the k3s + GitOps stack.
+# Codifies everything that was done by hand during setup, including the
+# two WSL2-specific fixes that must be re-applied after a WSL restart.
+#
+# Run with:  ansible-playbook -i inventory.ini site.yml --ask-become-pass
+
+- name: System-level provisioning
+  hosts: local
+  become: true
+  tags: [system]
+  vars:
+    target_user: avri
+  tasks:
+    - name: Install prerequisite packages
+      ansible.builtin.apt:
+        name:
+          - curl
+          - git
+          - unzip
+        state: present
+        update_cache: true
+
+    # WSL2 fix 1: Docker Desktop's 9p mount has an unescaped space in its
+    # options string, which breaks kubelet's /proc/mounts parser and
+    # crash-loops k3s. It reappears after every WSL restart.
+    - name: Check whether the Docker Desktop 9p mount is present
+      ansible.builtin.command: findmnt /Docker/host
+      register: docker_host_mount
+      failed_when: false
+      changed_when: false
+
+    - name: Unmount /Docker/host (breaks kubelet's mount parser)
+      ansible.builtin.command: umount /Docker/host
+      when: docker_host_mount.rc == 0
+
+    # WSL2 fix 2: node-exporter's hostPath volume needs / to propagate
+    # mounts; WSL2 boots with it private.
+    - name: Check root mount propagation
+      ansible.builtin.command: findmnt -no PROPAGATION /
+      register: root_propagation
+      changed_when: false
+
+    - name: Make / a shared mount (needed by node-exporter)
+      ansible.builtin.command: mount --make-rshared /
+      when: "'shared' not in root_propagation.stdout"
+
+    - name: Check whether k3s is installed
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_binary
+
+    - name: Install k3s
+      ansible.builtin.shell: curl -sfL https://get.k3s.io | sh -
+      when: not k3s_binary.stat.exists
+
+    - name: Ensure k3s service is enabled and running
+      ansible.builtin.systemd:
+        name: k3s
+        state: started
+        enabled: true
+
+    - name: Ensure ~/.kube exists for {{ target_user }}
+      ansible.builtin.file:
+        path: /home/{{ target_user }}/.kube
+        state: directory
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
+        mode: "0755"
+
+    - name: Copy k3s kubeconfig for {{ target_user }}
+      ansible.builtin.copy:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: /home/{{ target_user }}/.kube/config
+        remote_src: true
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
+        mode: "0600"
+
+    # Allows the user's systemd units (port-forwards below) to run
+    # without an active login session.
+    - name: Enable lingering for {{ target_user }}
+      ansible.builtin.command: loginctl enable-linger {{ target_user }}
+      args:
+        creates: /var/lib/systemd/linger/{{ target_user }}
+
+- name: User-level provisioning
+  hosts: local
+  become: false
+  tags: [user]
+  vars:
+    local_bin: "{{ ansible_env.HOME }}/.local/bin"
+    port_forwards:
+      - name: traefik
+        namespace: kube-system
+        service: traefik
+        local_port: 8000
+        remote_port: 80
+      - name: grafana
+        namespace: monitoring
+        service: monitoring-grafana
+        local_port: 3001
+        remote_port: 80
+      - name: prometheus
+        namespace: monitoring
+        service: monitoring-kube-prometheus-prometheus
+        local_port: 9090
+        remote_port: 9090
+      - name: argocd
+        namespace: argocd
+        service: argocd-server
+        local_port: 8080
+        remote_port: 443
+      - name: vault
+        namespace: vault
+        service: vault
+        local_port: 8200
+        remote_port: 8200
+  tasks:
+    - name: Ensure ~/.local/bin exists
+      ansible.builtin.file:
+        path: "{{ local_bin }}"
+        state: directory
+        mode: "0755"
+
+    - name: Install gh CLI
+      ansible.builtin.shell: |
+        set -e
+        VERSION=$(curl -s https://api.github.com/repos/cli/cli/releases/latest | grep -m1 '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
+        curl -sL "https://github.com/cli/cli/releases/download/v${VERSION}/gh_${VERSION}_linux_amd64.tar.gz" | tar xz -C /tmp
+        cp /tmp/gh_${VERSION}_linux_amd64/bin/gh {{ local_bin }}/gh
+        chmod +x {{ local_bin }}/gh
+      args:
+        creates: "{{ local_bin }}/gh"
+
+    - name: Install cloudflared
+      ansible.builtin.get_url:
+        url: https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+        dest: "{{ local_bin }}/cloudflared"
+        mode: "0755"
+
+    - name: Install terraform
+      ansible.builtin.shell: |
+        set -e
+        VERSION=$(curl -s https://api.releases.hashicorp.com/v1/releases/terraform/latest | grep -o '"version":"[^"]*"' | head -1 | cut -d'"' -f4)
+        curl -sL "https://releases.hashicorp.com/terraform/${VERSION}/terraform_${VERSION}_linux_amd64.zip" -o /tmp/terraform.zip
+        unzip -o /tmp/terraform.zip terraform -d {{ local_bin }}
+        chmod +x {{ local_bin }}/terraform
+      args:
+        creates: "{{ local_bin }}/terraform"
+
+    - name: Ensure systemd user unit directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_env.HOME }}/.config/systemd/user"
+        state: directory
+        mode: "0755"
+
+    # kubectl port-forward creates a real listening socket, which is the
+    # only thing WSL2's localhost relay will forward to Windows — the
+    # iptables-based ServiceLB ports are invisible to it. Running these
+    # as systemd user units makes them survive restarts and crashes.
+    - name: Create port-forward systemd user units
+      ansible.builtin.copy:
+        dest: "{{ ansible_env.HOME }}/.config/systemd/user/pf-{{ item.name }}.service"
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=kubectl port-forward for {{ item.name }}
+          After=network-online.target
+
+          [Service]
+          ExecStart=/usr/local/bin/kubectl --kubeconfig=%h/.kube/config port-forward -n {{ item.namespace }} svc/{{ item.service }} {{ item.local_port }}:{{ item.remote_port }}
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=default.target
+      loop: "{{ port_forwards }}"
+      notify: Reload user systemd
+
+    - name: Enable and start port-forward units
+      ansible.builtin.systemd:
+        name: "pf-{{ item.name }}.service"
+        scope: user
+        state: started
+        enabled: true
+        daemon_reload: true
+      loop: "{{ port_forwards }}"
+
+  handlers:
+    - name: Reload user systemd
+      ansible.builtin.systemd:
+        scope: user
+        daemon_reload: true
