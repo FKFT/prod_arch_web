@@ -2,17 +2,18 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - deployment.yaml
-  - service.yaml
-  - ingress.yaml
-  - postgres.yaml
-  - servicemonitor.yaml
+- deployment.yaml
+- service.yaml
+- ingress.yaml
+- postgres.yaml
+- servicemonitor.yaml
 
 configMapGenerator:
-  - name: postgres-initdb
-    files:
-      - init.sql=init.sql
+- files:
+  - init.sql=init.sql
+  name: postgres-initdb
 
 images:
-  - name: website
-    newTag: local
+- name: website
+  newName: ghcr.io/fkft/prod_arch_web
+  newTag: a608af83dc8c7f67792cf6813947cbf000600959
