@@ -7,6 +7,9 @@ resources:
 - ingress.yaml
 - postgres.yaml
 - servicemonitor.yaml
+- cart/
+- payment/
+- ads/
 
 configMapGenerator:
 - files:
@@ -17,3 +20,12 @@ images:
 - name: website
   newName: ghcr.io/fkft/prod_arch_web
   newTag: 1a22d7b2f86ecc8a66511e879bf84864896ef729
+- name: cart
+  newName: ghcr.io/fkft/prod_arch_web-cart
+  newTag: dev
+- name: payment
+  newName: ghcr.io/fkft/prod_arch_web-payment
+  newTag: dev
+- name: ads
+  newName: ghcr.io/fkft/prod_arch_web-ads
+  newTag: dev

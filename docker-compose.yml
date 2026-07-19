@@ -17,6 +17,24 @@ services:
     ports:
       - "5432:5432"
 
+  cart:
+    build: ./services/cart
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+
+  payment:
+    build: ./services/payment
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+
+  ads:
+    build: ./services/ads
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+
   app:
     build: .
     restart: unless-stopped
@@ -27,6 +45,9 @@ services:
       PGUSER: postgres
       PGPASSWORD: postgres
       PGDATABASE: phase1
+      CART_URL: http://cart:3000
+      PAYMENT_URL: http://payment:3000
+      ADS_URL: http://ads:3000
     ports:
       - "3000:3000"
     depends_on:

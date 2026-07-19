@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ads
+  labels:
+    app: ads
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: ads
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
