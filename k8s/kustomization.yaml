@@ -7,6 +7,8 @@ resources:
 - ingress.yaml
 - postgres.yaml
 - servicemonitor.yaml
+- secretstore.yaml
+- externalsecrets.yaml
 - cart/
 - payment/
 - ads/
