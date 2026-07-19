@@ -17,15 +17,15 @@ configMapGenerator:
   name: postgres-initdb
 
 images:
-- name: website
-  newName: ghcr.io/fkft/prod_arch_web
-  newTag: 1a22d7b2f86ecc8a66511e879bf84864896ef729
-- name: cart
-  newName: ghcr.io/fkft/prod_arch_web-cart
-  newTag: dev
-- name: payment
-  newName: ghcr.io/fkft/prod_arch_web-payment
-  newTag: dev
 - name: ads
   newName: ghcr.io/fkft/prod_arch_web-ads
-  newTag: dev
+  newTag: 2dc33b493ad175c7e499f47b7f8f7521f6c7b008
+- name: cart
+  newName: ghcr.io/fkft/prod_arch_web-cart
+  newTag: 2dc33b493ad175c7e499f47b7f8f7521f6c7b008
+- name: payment
+  newName: ghcr.io/fkft/prod_arch_web-payment
+  newTag: 2dc33b493ad175c7e499f47b7f8f7521f6c7b008
+- name: website
+  newName: ghcr.io/fkft/prod_arch_web
+  newTag: 2dc33b493ad175c7e499f47b7f8f7521f6c7b008
