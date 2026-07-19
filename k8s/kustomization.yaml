@@ -16,4 +16,4 @@ configMapGenerator:
 images:
 - name: website
   newName: ghcr.io/fkft/prod_arch_web
-  newTag: a608af83dc8c7f67792cf6813947cbf000600959
+  newTag: 5abdb5462d59266368246546d0f7de1ddc1019e7
