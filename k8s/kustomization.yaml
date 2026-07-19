@@ -6,6 +6,7 @@ resources:
   - service.yaml
   - ingress.yaml
   - postgres.yaml
+  - servicemonitor.yaml
 
 configMapGenerator:
   - name: postgres-initdb
