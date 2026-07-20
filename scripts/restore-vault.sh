@@ -32,4 +32,12 @@ print(json.dumps({"data": {"dockerconfigjson": base64.b64decode(data[".dockercon
 ' | curl -sf -H "X-Vault-Token: $VAULT_TOKEN" -X POST \
       "$VAULT_ADDR/v1/secret/data/ghcr" -d @- -o /dev/null
 
+echo "==> Re-seeding secret/splunk from the cluster's last-synced secret"
+kubectl get secret splunk-credentials -n splunk -o json | python3 -c '
+import base64, json, sys
+data = json.load(sys.stdin)["data"]
+print(json.dumps({"data": {k: base64.b64decode(v).decode() for k, v in data.items()}}))
+' | curl -sf -H "X-Vault-Token: $VAULT_TOKEN" -X POST \
+      "$VAULT_ADDR/v1/secret/data/splunk" -d @- -o /dev/null
+
 echo "==> Done. ExternalSecrets refresh within ~1 minute."
