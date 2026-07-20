@@ -1,0 +1,23 @@
+# Only the website BFF (default namespace) and Prometheus may reach this
+# service; other pods in the cluster are blocked.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ads
+spec:
+  podSelector:
+    matchLabels:
+      app: ads
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+          podSelector:
+            matchLabels:
+              app: website
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring

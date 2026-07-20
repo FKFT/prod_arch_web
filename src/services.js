@@ -17,11 +17,11 @@ async function fetchJson(url, options = {}) {
 }
 
 function getCart(cartId) {
-  return fetchJson(`${CART_URL}/cart/${cartId}`);
+  return fetchJson(`${CART_URL}/cart/${encodeURIComponent(cartId)}`);
 }
 
 function addCartItem(cartId, item) {
-  return fetchJson(`${CART_URL}/cart/${cartId}/items`, {
+  return fetchJson(`${CART_URL}/cart/${encodeURIComponent(cartId)}/items`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(item),
@@ -29,7 +29,10 @@ function addCartItem(cartId, item) {
 }
 
 function removeCartItem(cartId, productId) {
-  return fetchJson(`${CART_URL}/cart/${cartId}/items/${productId}`, { method: 'DELETE' });
+  return fetchJson(
+    `${CART_URL}/cart/${encodeURIComponent(cartId)}/items/${encodeURIComponent(productId)}`,
+    { method: 'DELETE' }
+  );
 }
 
 function charge(amount_cents, card_last4) {

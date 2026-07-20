@@ -28,7 +28,7 @@ const adsServed = new client.Counter({
 function metricsMiddleware(req, res, next) {
   const endTimer = httpRequestDuration.startTimer();
   res.on('finish', () => {
-    const route = req.route ? req.baseUrl + req.route.path : req.path;
+    const route = req.route ? req.baseUrl + req.route.path : 'unmatched';
     const labels = { method: req.method, route, status_code: res.statusCode };
     httpRequestCount.inc(labels);
     endTimer(labels);

@@ -9,6 +9,7 @@ resources:
 - servicemonitor.yaml
 - secretstore.yaml
 - externalsecrets.yaml
+- networkpolicies.yaml
 - cart/
 - payment/
 - ads/

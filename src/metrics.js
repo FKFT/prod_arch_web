@@ -21,7 +21,9 @@ const httpRequestDuration = new client.Histogram({
 function metricsMiddleware(req, res, next) {
   const endTimer = httpRequestDuration.startTimer();
   res.on('finish', () => {
-    const route = req.route ? req.baseUrl + req.route.path : req.path;
+    // Unmatched paths share one label value so arbitrary URLs can't blow up
+    // metric cardinality.
+    const route = req.route ? req.baseUrl + req.route.path : 'unmatched';
     const labels = { method: req.method, route, status_code: res.statusCode };
     httpRequestCount.inc(labels);
     endTimer(labels);

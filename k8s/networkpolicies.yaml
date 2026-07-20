@@ -1,0 +1,42 @@
+# Ingress-only policies: each workload states who may talk to it.
+# Kubelet health probes originate from the node and are not blocked by
+# the k3s network policy controller.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: website
+spec:
+  podSelector:
+    matchLabels:
+      app: website
+  policyTypes: [Ingress]
+  ingress:
+    # Traefik ingress controller (public traffic enters here).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+    # Prometheus scrapes /metrics on the pod directly.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes: [Ingress]
+  ingress:
+    # Only the website talks to the database.
+    - from:
+        - podSelector:
+            matchLabels:
+              app: website

@@ -8,8 +8,21 @@ const { getCart, addCartItem, removeCartItem, charge, getAds } = require('./serv
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+app.disable('x-powered-by');
+app.use(express.json({ limit: '10kb' }));
+app.use((req, res, next) => {
+  res.set({
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'no-referrer',
+    'Content-Security-Policy':
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'",
+  });
+  next();
+});
 app.use(metricsMiddleware);
+
+const PRODUCT_ID_RE = /^\d{1,10}$/;
 
 app.get('/', async (req, res) => {
   try {
@@ -37,7 +50,35 @@ app.get('/api/cart', async (req, res) => {
 
 app.post('/api/cart/items', async (req, res) => {
   const cartId = getOrCreateCartId(req, res);
-  const result = await addCartItem(cartId, req.body).catch(() => null);
+  const { productId, qty } = req.body || {};
+  if (typeof productId !== 'string' || !PRODUCT_ID_RE.test(productId)) {
+    return res.status(400).json({ error: 'Invalid productId' });
+  }
+
+  // Name and price always come from the catalog, never from the client,
+  // so a tampered request can't change what an item costs.
+  let product;
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, name, price_cents FROM products WHERE id = $1',
+      [productId]
+    );
+    product = rows[0];
+  } catch (err) {
+    console.error('Error looking up product', err);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+  if (!product) {
+    return res.status(404).json({ error: 'Unknown product' });
+  }
+
+  const item = {
+    productId: String(product.id),
+    name: product.name,
+    price_cents: product.price_cents,
+    qty: Number.isInteger(qty) && qty > 0 && qty <= 99 ? qty : 1,
+  };
+  const result = await addCartItem(cartId, item).catch(() => null);
   if (!result || !result.ok) {
     return res.status(503).json({ error: 'Cart service is unavailable' });
   }
@@ -46,6 +87,9 @@ app.post('/api/cart/items', async (req, res) => {
 
 app.delete('/api/cart/items/:productId', async (req, res) => {
   const cartId = getOrCreateCartId(req, res);
+  if (!PRODUCT_ID_RE.test(req.params.productId)) {
+    return res.status(400).json({ error: 'Invalid productId' });
+  }
   const result = await removeCartItem(cartId, req.params.productId).catch(() => null);
   if (!result || !result.ok) {
     return res.status(503).json({ error: 'Cart service is unavailable' });
@@ -87,11 +131,17 @@ app.get('/healthz', async (req, res) => {
     await pool.query('SELECT 1');
     res.status(200).json({ status: 'ok' });
   } catch (err) {
-    res.status(503).json({ status: 'error', error: err.message });
+    console.error('Health check failed', err);
+    res.status(503).json({ status: 'error' });
   }
 });
 
 app.get('/metrics', async (req, res) => {
+  // Prometheus scrapes the pod directly; anything arriving through the
+  // ingress (which sets X-Forwarded-For) is external and gets denied.
+  if (req.headers['x-forwarded-for']) {
+    return res.status(403).send('Forbidden');
+  }
   res.set('Content-Type', register.contentType);
   res.end(await register.metrics());
 });
