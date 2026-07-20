@@ -22,13 +22,13 @@ configMapGenerator:
 images:
 - name: ads
   newName: ghcr.io/fkft/prod_arch_web-ads
-  newTag: 1b2c4602f823409d45a6081ccd8716e8ca893a0b
+  newTag: 3374971a88e24a0095350286a20a4524e8e34741
 - name: cart
   newName: ghcr.io/fkft/prod_arch_web-cart
-  newTag: 1b2c4602f823409d45a6081ccd8716e8ca893a0b
+  newTag: 3374971a88e24a0095350286a20a4524e8e34741
 - name: payment
   newName: ghcr.io/fkft/prod_arch_web-payment
-  newTag: 1b2c4602f823409d45a6081ccd8716e8ca893a0b
+  newTag: 3374971a88e24a0095350286a20a4524e8e34741
 - name: website
   newName: ghcr.io/fkft/prod_arch_web
-  newTag: 1b2c4602f823409d45a6081ccd8716e8ca893a0b
+  newTag: 3374971a88e24a0095350286a20a4524e8e34741
