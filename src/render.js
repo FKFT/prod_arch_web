@@ -1,3 +1,18 @@
+function esc(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// accent_color is interpolated into CSS/SVG attributes, so only a strict
+// hex literal is accepted; anything else falls back to a neutral color.
+function safeColor(value) {
+  return /^#[0-9a-f]{3,8}$/i.test(value) ? value : '#999999';
+}
+
 function shoeSvg(id, accentColor) {
   const gradId = `grad-${id}`;
   return `<svg viewBox="0 0 300 160" class="shoe-art" role="img" aria-label="Shoe illustration">
@@ -23,21 +38,20 @@ function formatPrice(cents) {
 }
 
 function productCard(product) {
+  const accent = safeColor(product.accent_color);
   return `<article class="card">
-    <div class="card-art" style="background: radial-gradient(circle at 30% 20%, ${product.accent_color}22, #f5f5f7)">
-      ${shoeSvg(product.id, product.accent_color)}
+    <div class="card-art" style="background: radial-gradient(circle at 30% 20%, ${accent}22, #f5f5f7)">
+      ${shoeSvg(product.id, accent)}
     </div>
     <div class="card-body">
-      <h3>${product.name}</h3>
-      <p class="tagline">${product.tagline}</p>
+      <h3>${esc(product.name)}</h3>
+      <p class="tagline">${esc(product.tagline)}</p>
       <div class="card-footer">
         <span class="price">${formatPrice(product.price_cents)}</span>
         <button
           type="button"
           class="buy-btn"
-          data-product-id="${product.id}"
-          data-name="${product.name}"
-          data-price="${product.price_cents}"
+          data-product-id="${esc(product.id)}"
         >Add to Bag</button>
       </div>
     </div>
@@ -314,8 +328,6 @@ function renderStorefront(products, viewCount) {
     <div class="nav-right">
       <div class="nav-links">
         <a href="#collection">Collection</a>
-        <a href="/healthz">Status</a>
-        <a href="/metrics">Metrics</a>
       </div>
       <button type="button" class="cart-badge" id="cart-toggle">Bag (<span id="cart-count">0</span>)</button>
     </div>
@@ -378,6 +390,15 @@ function renderStorefront(products, viewCount) {
         return '$' + (cents / 100).toFixed(2);
       }
 
+      function esc(value) {
+        return String(value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
       function openDrawer() {
         drawer.classList.add('open');
         drawerBackdrop.classList.add('open');
@@ -408,10 +429,10 @@ function renderStorefront(products, viewCount) {
           drawerBody.innerHTML = cart.items.map(function (item) {
             return '<div class="drawer-item">' +
               '<div>' +
-                '<div class="item-name">' + item.name + '</div>' +
-                '<div class="item-meta">Qty ' + item.qty + ' &middot; ' + money(item.price_cents) + '</div>' +
+                '<div class="item-name">' + esc(item.name) + '</div>' +
+                '<div class="item-meta">Qty ' + esc(item.qty) + ' &middot; ' + money(item.price_cents) + '</div>' +
               '</div>' +
-              '<button type="button" class="remove-btn" data-remove="' + item.productId + '">Remove</button>' +
+              '<button type="button" class="remove-btn" data-remove="' + esc(item.productId) + '">Remove</button>' +
             '</div>';
           }).join('');
         } catch (err) {
@@ -431,8 +452,8 @@ function renderStorefront(products, viewCount) {
             return;
           }
           const ad = data.ads[0];
-          text.innerHTML = '<strong>' + ad.headline + '</strong> &mdash; ' + ad.subtext;
-          banner.style.borderLeftColor = ad.accent_color;
+          text.innerHTML = '<strong>' + esc(ad.headline) + '</strong> &mdash; ' + esc(ad.subtext);
+          banner.style.borderLeftColor = /^#[0-9a-f]{3,8}$/i.test(ad.accent_color) ? ad.accent_color : '#999';
           banner.classList.add('visible');
         } catch (err) {
           banner.classList.remove('visible');
@@ -458,8 +479,6 @@ function renderStorefront(products, viewCount) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               productId: btn.dataset.productId,
-              name: btn.dataset.name,
-              price_cents: Number(btn.dataset.price),
               qty: 1,
             }),
           });

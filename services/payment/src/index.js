@@ -3,11 +3,14 @@ const express = require('express');
 const { register, metricsMiddleware, paymentsTotal, paymentAmount } = require('./metrics');
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '10kb' }));
 app.use(metricsMiddleware);
 
 const PORT = process.env.PORT || 3000;
 const DECLINE_RATE = 0.1;
+const MAX_AMOUNT_CENTS = 100_000_000;
+// Cap the in-memory transaction log so it can't grow without bound.
+const MAX_TRANSACTIONS = 10000;
 
 // transaction_id -> { status, amount_cents, card_last4, created_at }
 const transactions = new Map();
@@ -23,14 +26,20 @@ app.get('/metrics', async (req, res) => {
 
 app.post('/charge', (req, res) => {
   const { amount_cents, card_last4 } = req.body || {};
-  if (!Number.isFinite(amount_cents) || amount_cents <= 0 || !/^\d{4}$/.test(card_last4 || '')) {
-    return res.status(400).json({ error: 'amount_cents (positive number) and card_last4 (4 digits) are required' });
+  if (
+    !Number.isInteger(amount_cents) || amount_cents <= 0 || amount_cents > MAX_AMOUNT_CENTS ||
+    typeof card_last4 !== 'string' || !/^\d{4}$/.test(card_last4)
+  ) {
+    return res.status(400).json({ error: 'amount_cents (positive integer) and card_last4 (4 digits) are required' });
   }
 
   const approved = Math.random() >= DECLINE_RATE;
   const status = approved ? 'approved' : 'declined';
   const transaction_id = crypto.randomUUID();
 
+  if (transactions.size >= MAX_TRANSACTIONS) {
+    transactions.delete(transactions.keys().next().value);
+  }
   transactions.set(transaction_id, {
     status,
     amount_cents,
