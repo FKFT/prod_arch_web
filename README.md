@@ -37,7 +37,7 @@ flowchart LR
     GHCR -. image pull .-> W
     U[Browser] -->|via Cloudflare Tunnel| T
     PR -. scrapes all services .-> W
-    FB -. tails every pod stdout/stderr<br/>incl. Traefik access log .-> T
+    FB -. tails every pod stdout/stderr<br/>including the Traefik access log .-> T
 ```
 
 Every layer has one owner and one change method:
