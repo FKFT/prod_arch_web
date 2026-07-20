@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: splunk
+  labels:
+    app: splunk
+spec:
+  clusterIP: None
+  selector:
+    app: splunk
+  ports:
+    - name: web
+      port: 8000
+      targetPort: web
+    - name: management
+      port: 8089
+      targetPort: management
+    - name: hec
+      port: 8088
+      targetPort: hec
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: splunk
+spec:
+  serviceName: splunk
+  replicas: 1
+  selector:
+    matchLabels:
+      app: splunk
+  template:
+    metadata:
+      labels:
+        app: splunk
+    spec:
+      automountServiceAccountToken: false
+      # Unlike our own app images, splunk/splunk's first-boot Ansible provisioning
+      # must start as root: it sudo-chowns /opt/splunk to its internal "splunk" user
+      # (uid 41812) itself before splunkd drops to that user. Forcing runAsUser here
+      # (or dropping chown/setuid capabilities) breaks that provisioning step with
+      # "effective uid is not 0" — so this container keeps the vendor's default,
+      # unhardened security context rather than matching the app services' pattern.
+      containers:
+        - name: splunk
+          image: splunk/splunk:10.0.8
+          ports:
+            - name: web
+              containerPort: 8000
+            - name: management
+              containerPort: 8089
+            - name: hec
+              containerPort: 8088
+          env:
+            - name: SPLUNK_START_ARGS
+              value: "--accept-license"
+            - name: SPLUNK_GENERAL_TERMS
+              value: "--accept-sgt-current-at-splunk-com"
+          envFrom:
+            - secretRef:
+                name: splunk-credentials
+          volumeMounts:
+            - name: data
+              mountPath: /opt/splunk/etc
+              subPath: etc
+            - name: data
+              mountPath: /opt/splunk/var
+              subPath: var
+          readinessProbe:
+            tcpSocket:
+              port: management
+            initialDelaySeconds: 180
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            tcpSocket:
+              port: management
+            initialDelaySeconds: 300
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 1000m
+              memory: 2Gi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 10Gi

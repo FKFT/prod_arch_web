@@ -1,0 +1,19 @@
+# Access to the web/management UI is via kubectl port-forward (pf-splunk),
+# which the k3s network policy controller doesn't block. The HEC input is
+# reachable in-cluster, restricted to the Fluent Bit log shipper.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: splunk
+spec:
+  podSelector:
+    matchLabels:
+      app: splunk
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: logging
+      ports:
+        - port: hec

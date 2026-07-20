@@ -1,0 +1,29 @@
+# Overrides for k3s's built-in Traefik (installed as a HelmChart addon, not
+# through our own terraform/kustomize). Picked up automatically by k3s's
+# helm-controller on apply — no manual `helm upgrade` needed.
+#
+# Enables JSON access logs and trusts X-Forwarded-For from 127.0.0.1: the
+# site is reachable via a Cloudflare Tunnel that connects to Traefik over
+# `kubectl port-forward` (loopback), so without this, every request's
+# logged ClientHost would be 127.0.0.1 instead of the real visitor IP that
+# Cloudflare forwards in the header.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    logs:
+      access:
+        enabled: true
+        format: json
+    ports:
+      web:
+        forwardedHeaders:
+          trustedIPs:
+            - 127.0.0.1/32
+      websecure:
+        forwardedHeaders:
+          trustedIPs:
+            - 127.0.0.1/32
